@@ -1,0 +1,79 @@
+# Number Surfer Tools Configuration
+# This file defines numpy-based statistical tools available to the MCP server
+# Parameter details and docstrings will be automatically extracted via inspection
+
+# Serialization configuration for handling array types
+serialization:
+  # Use default conversions file from the package
+  enabled: true
+  # Default behavior for unknown types
+  default_behavior: "string"  # "string", "error", "pass_through"
+
+tools:
+  np_mean:
+    python_path: "numpy.mean"
+    full_path: "numpy"
+    workflow_context:
+      description: "Calculate the arithmetic mean of array elements"
+  
+  np_std:
+    python_path: "numpy.std"
+    full_path: "numpy"
+    workflow_context:
+      description: "Compute the standard deviation along the specified axis"
+  
+  np_quantile:
+    python_path: "numpy.quantile"
+    full_path: "numpy"
+    workflow_context:
+      description: "Compute the q-th quantile of the data along the specified axis"
+  
+  np_median:
+    python_path: "numpy.median"
+    full_path: "numpy"
+    workflow_context:
+      description: "Compute the median along the specified axis"
+  
+  np_min:
+    python_path: "numpy.min"
+    full_path: "numpy"
+    workflow_context:
+      description: "Return the minimum of an array or minimum along an axis"
+  
+  np_max:
+    python_path: "numpy.max"
+    full_path: "numpy"
+    workflow_context:
+      description: "Return the maximum of an array or maximum along an axis"
+  
+  np_sum:
+    python_path: "numpy.sum"
+    full_path: "numpy"
+    workflow_context:
+      description: "Sum of array elements over a given axis"
+  
+  np_var:
+    python_path: "numpy.var"
+    full_path: "numpy"
+    workflow_context:
+      description: "Compute the variance along the specified axis"
+  
+  np_random_normal:
+    python_path: "numpy.random.normal"
+    full_path: "numpy"
+    workflow_context:
+      description: "Draw random samples from a normal (Gaussian) distribution"
+      parameters:
+        loc: "Mean of the distribution"
+        scale: "Standard deviation of the distribution"
+        size: "Output shape (int or tuple of ints)"
+  
+  np_random_uniform:
+    python_path: "numpy.random.uniform"
+    full_path: "numpy"
+    workflow_context:
+      description: "Draw samples from a uniform distribution"
+      parameters:
+        low: "Lower boundary of the output interval"
+        high: "Upper boundary of the output interval"
+        size: "Output shape (int or tuple of ints)" 

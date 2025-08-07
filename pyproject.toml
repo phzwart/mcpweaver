@@ -14,7 +14,12 @@ classifiers = [
 ]
 license = {text = "MIT"}
 dependencies = [
-  "typer"
+  "typer",
+  "rich",
+  "pyyaml",
+  "fastapi",
+  "uvicorn[standard]",
+  "requests"
 ]
 requires-python = ">= 3.10"
 

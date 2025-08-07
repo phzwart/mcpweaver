@@ -1,0 +1,378 @@
+# Number Surfer Client Configuration
+# This shows how to configure the client for numpy-based statistical analysis
+
+llm:
+  model: "phi3:mini"
+  provider: "ollama"     # ollama, openai, anthropic, etc.
+  api_url: "http://localhost:11434/api/generate"  # API endpoint for the provider
+  timeout: 30  # Timeout in seconds for LLM requests
+  options:
+    temperature: 0.1
+    top_p: 0.9
+  # JSON Schema for structured output (Ollama native support)
+  json_schema:
+    type: "object"
+    properties:
+      tools:
+        type: "array"
+        items:
+          type: "string"
+          enum: ["np_mean", "np_std", "np_quantile", "np_median", "np_min", "np_max", "np_sum", "np_var", "np_random_normal", "np_random_uniform"]
+        description: "List of tool names to use"
+      arguments:
+        type: "object"
+        properties:
+          np_mean:
+            type: "object"
+            properties:
+              a:
+                type: "array"
+                description: "Input array"
+          np_std:
+            type: "object"
+            properties:
+              a:
+                type: "array"
+                description: "Input array"
+              axis:
+                type: "integer"
+                description: "Axis along which to compute"
+          np_quantile:
+            type: "object"
+            properties:
+              a:
+                type: "array"
+                description: "Input array"
+              q:
+                type: "number"
+                description: "Quantile to compute (0-1)"
+          np_median:
+            type: "object"
+            properties:
+              a:
+                type: "array"
+                description: "Input array"
+          np_min:
+            type: "object"
+            properties:
+              a:
+                type: "array"
+                description: "Input array"
+          np_max:
+            type: "object"
+            properties:
+              a:
+                type: "array"
+                description: "Input array"
+          np_sum:
+            type: "object"
+            properties:
+              a:
+                type: "array"
+                description: "Input array"
+          np_var:
+            type: "object"
+            properties:
+              a:
+                type: "array"
+                description: "Input array"
+          np_random_normal:
+            type: "object"
+            properties:
+              loc:
+                type: "number"
+                description: "Mean of the distribution"
+              scale:
+                type: "number"
+                description: "Standard deviation"
+              size:
+                oneOf:
+                  - type: "integer"
+                  - type: "array"
+                    items:
+                      type: "integer"
+                description: "Output shape (int or tuple)"
+          np_random_uniform:
+            type: "object"
+            properties:
+              low:
+                type: "number"
+                description: "Lower boundary"
+              high:
+                type: "number"
+                description: "Upper boundary"
+              size:
+                oneOf:
+                  - type: "integer"
+                  - type: "array"
+                    items:
+                      type: "integer"
+                description: "Output shape (int or tuple)"
+        additionalProperties: false
+        description: "Arguments for each tool"
+    required: ["tools", "arguments"]
+  
+mcp_server:
+  host: "localhost"
+  port: 8080
+  timeout: 10  # Timeout in seconds for MCP server requests
+
+# Serialization configuration for handling NumPy arrays
+serialization:
+  # Use default conversions file from the package
+  enabled: true
+  # Default behavior for unknown types
+  default_behavior: "string"  # "string", "error", "pass_through"
+
+# Behavior and Prompt Instructions
+behavior:
+  role: "Statistical Analysis Assistant"
+  personality: "Analytical, precise, and helpful with numerical computations"
+  
+  instructions: |
+    You are a statistical analysis assistant that helps users perform numerical computations.
+    
+    When users ask questions:
+    1. Use the appropriate numpy tools based on the query
+    2. Build logical sequences of tool calls
+    3. Provide clear explanations of what you're doing and why
+    4. Follow the configured workflow patterns
+    
+    Always explain your reasoning and what tools you're using.
+
+# Tool Selection Rules (LLM will decide based on query)
+tool_selection:
+  # Available tools for LLM to choose from
+  np_mean:
+    description: "Calculate the arithmetic mean of array elements"
+    
+  np_std:
+    description: "Compute the standard deviation along the specified axis"
+    
+  np_quantile:
+    description: "Compute the q-th quantile of the data along the specified axis"
+    
+  np_median:
+    description: "Compute the median along the specified axis"
+    
+  np_min:
+    description: "Return the minimum of an array or minimum along an axis"
+    
+  np_max:
+    description: "Return the maximum of an array or maximum along an axis"
+    
+  np_sum:
+    description: "Sum of array elements over a given axis"
+    
+  np_var:
+    description: "Compute the variance along the specified axis"
+    
+  np_random_normal:
+    description: "Draw random samples from a normal (Gaussian) distribution"
+    
+  np_random_uniform:
+    description: "Draw samples from a uniform distribution"
+
+# Default behavior when no specific tools are requested
+default_behavior:
+  show_tools_info: true
+  suggest_common_queries: true
+
+# Tool Usage Guidelines with Keywords
+tools:
+  np_mean:
+    description: "Calculate the arithmetic mean of array elements"
+    keywords: ["mean", "average", "central tendency", "arithmetic mean"]
+    when_to_use: "Use to calculate the average value of a dataset"
+    
+  np_std:
+    description: "Compute the standard deviation along the specified axis"
+    keywords: ["standard deviation", "std", "variability", "spread"]
+    when_to_use: "Use to measure the spread or variability of data"
+    
+  np_quantile:
+    description: "Compute the q-th quantile of the data along the specified axis"
+    keywords: ["quantile", "percentile", "quartile", "median"]
+    when_to_use: "Use to find specific percentiles or quartiles of data"
+    
+  np_median:
+    description: "Compute the median along the specified axis"
+    keywords: ["median", "middle value", "robust average"]
+    when_to_use: "Use to find the middle value of a dataset"
+    
+  np_min:
+    description: "Return the minimum of an array or minimum along an axis"
+    keywords: ["minimum", "min", "lowest", "smallest"]
+    when_to_use: "Use to find the smallest value in a dataset"
+    
+  np_max:
+    description: "Return the maximum of an array or maximum along an axis"
+    keywords: ["maximum", "max", "highest", "largest"]
+    when_to_use: "Use to find the largest value in a dataset"
+    
+  np_sum:
+    description: "Sum of array elements over a given axis"
+    keywords: ["sum", "total", "addition", "summation"]
+    when_to_use: "Use to calculate the total of all values"
+    
+  np_var:
+    description: "Compute the variance along the specified axis"
+    keywords: ["variance", "var", "spread", "variability"]
+    when_to_use: "Use to measure the spread of data around the mean"
+    
+  np_random_normal:
+    description: "Draw random samples from a normal (Gaussian) distribution"
+    keywords: ["normal", "gaussian", "random", "generate", "simulate"]
+    when_to_use: "Use to generate random numbers from a normal distribution"
+    
+  np_random_uniform:
+    description: "Draw samples from a uniform distribution"
+    keywords: ["uniform", "random", "generate", "simulate", "equal probability"]
+    when_to_use: "Use to generate random numbers from a uniform distribution"
+
+# Prompt Templates
+prompts:
+  system_prompt: |
+    You are a statistical analysis assistant. You have access to numpy tools through an MCP server.
+    
+    Your job is to help users perform numerical computations and statistical analysis. Always:
+    - Start by understanding what the user wants to compute
+    - Use appropriate numpy tools to answer questions
+    - Explain what you're doing and why
+    - Provide clear, helpful responses with numerical results
+    
+  user_prompt_template: |
+    User Query: {query}
+    
+    Available Tools:
+    - np_mean: Calculate the arithmetic mean of array elements
+    - np_std: Compute the standard deviation along the specified axis
+    - np_quantile: Compute the q-th quantile of the data along the specified axis
+    - np_median: Compute the median along the specified axis
+    - np_min: Return the minimum of an array or minimum along an axis
+    - np_max: Return the maximum of an array or maximum along an axis
+    - np_sum: Sum of array elements over a given axis
+    - np_var: Compute the variance along the specified axis
+    - np_random_normal: Draw random samples from a normal (Gaussian) distribution
+    - np_random_uniform: Draw samples from a uniform distribution
+    
+    Please use the appropriate tools to answer the user's query.
+
+# Response Format Configuration
+response_format:
+  include_tool_calls: true
+  explain_reasoning: true
+  provide_summary: true
+  suggest_next_steps: true
+
+# Summary Logic (configurable per tool)
+summary_logic:
+  np_mean:
+    success_message: "✅ Mean calculated successfully"
+    failure_message: "❌ Could not calculate mean"
+  
+  np_std:
+    success_message: "✅ Standard deviation calculated successfully"
+    failure_message: "❌ Could not calculate standard deviation"
+
+# Next Steps Suggestions
+next_steps:
+  - "Ask me to calculate other statistics (median, variance, etc.)"
+  - "Request to generate random data for testing"
+  - "Ask me to analyze the distribution of your data"
+  - "Request to compare different datasets"
+
+# Response Templates
+response_templates:
+  tools_info_header: "🛠️ **Available Tools:**"
+  reasoning_header: "🤔 **My Reasoning:**"
+  tool_results_header: "🔧 **Tool Results:**"
+  summary_header: "📊 **Summary:**"
+  next_steps_header: "💡 **Next Steps:**"
+  next_steps_default:
+    - "Ask me to use any of these statistical tools"
+    - "Request specific numerical computations"
+    - "Ask for help with data analysis"
+
+# Argument Extraction Rules
+argument_extraction:
+  np_mean:
+    a:
+      from_tool: "np_random_normal"
+      field: "result"
+      type: "first"
+  
+  np_std:
+    a:
+      from_tool: "np_random_normal"
+      field: "result"
+      type: "first"
+  
+  np_quantile:
+    a:
+      from_tool: "np_random_normal"
+      field: "result"
+      type: "first"
+  
+  np_median:
+    a:
+      from_tool: "np_random_normal"
+      field: "result"
+      type: "first"
+  
+  np_min:
+    a:
+      from_tool: "np_random_normal"
+      field: "result"
+      type: "first"
+  
+  np_max:
+    a:
+      from_tool: "np_random_normal"
+      field: "result"
+      type: "first"
+  
+  np_sum:
+    a:
+      from_tool: "np_random_normal"
+      field: "result"
+      type: "first"
+  
+  np_var:
+    a:
+      from_tool: "np_random_normal"
+      field: "result"
+      type: "first"
+
+# LLM Reasoning Configuration
+llm_reasoning:
+  system_prompt_template: |
+    You are an AI assistant that helps users with statistical analysis and numerical computations.
+
+    Available tools:
+    {tools}
+
+    Your task is to:
+    1. Understand what the user wants to compute
+    2. Select the appropriate tool(s) to use
+    3. Extract any required arguments from the user's query
+    4. When chaining tools, use the output from previous tools as input to subsequent tools
+
+    Respond with a JSON object containing:
+    - "tools": Array of tool names to use (in order of execution)
+    - "arguments": Object with arguments for each tool
+
+    IMPORTANT: When you need to use the output from one tool as input to another tool:
+    - For the first tool, provide the actual arguments
+    - For subsequent tools that use the output from previous tools, use "USE_OUTPUT_FROM_[tool_name]" as the 'a' parameter
+    - The system will automatically replace this placeholder with the actual output from the previous tool
+
+    Examples:
+    - "calculate the mean of [1,2,3,4,5]" → {{"tools": ["np_mean"], "arguments": {{"np_mean": {{"a": [1,2,3,4,5]}}}}}}
+    - "generate 100 random numbers from normal distribution" → {{"tools": ["np_random_normal"], "arguments": {{"np_random_normal": {{"loc": 0, "scale": 1, "size": 100}}}}}}
+    - "generate 10 random numbers and find their mean" → {{"tools": ["np_random_normal", "np_mean"], "arguments": {{"np_random_normal": {{"loc": 0, "scale": 1, "size": 10}}, "np_mean": {{"a": "USE_OUTPUT_FROM_np_random_normal"}}}}}}
+    - "generate 20 random numbers and compute the 0.25 quantile" → {{"tools": ["np_random_normal", "np_quantile"], "arguments": {{"np_random_normal": {{"loc": 0, "scale": 1, "size": 20}}, "np_quantile": {{"a": "USE_OUTPUT_FROM_np_random_normal", "q": 0.25}}}}}}
+    - "generate 5 random numbers and find their standard deviation" → {{"tools": ["np_random_normal", "np_std"], "arguments": {{"np_random_normal": {{"loc": 0, "scale": 1, "size": 5}}, "np_std": {{"a": "USE_OUTPUT_FROM_np_random_normal"}}}}}}
+
+  user_prompt_template: "User query: {query}"
+  json_extraction_regex: r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'  # More precise JSON extraction 

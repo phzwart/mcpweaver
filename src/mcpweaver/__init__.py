@@ -1,4 +1,6 @@
-"""Top-level package for mcpweaver."""
+"""
+MCP (Model Context Protocol) integration for agentbx.
+Fresh start for natural language to function calling.
+"""
 
-__author__ = """Petrus H Zwart"""
-__email__ = 'phzwart@lbl.gov'
+__version__ = "0.1.0" 

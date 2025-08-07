@@ -1,0 +1,109 @@
+# Array Type Conversions Configuration
+# This file defines how different array types should be serialized and deserialized
+# when passed between tools in the MCP workflow
+
+# Global conversion settings
+settings:
+  # Enable/disable automatic conversions
+  enabled: true
+  # Default behavior for unknown types
+  default_behavior: "string"  # "string", "error", "pass_through"
+
+# Array type conversions
+conversions:
+  numpy:
+    # Tool name prefixes that use NumPy
+    tool_prefixes: ["np_"]
+    # Serialization (server -> client)
+    serialize:
+      enabled: true
+      method: "tolist"
+      # Convert NumPy arrays to Python lists for JSON transmission
+      description: "Convert NumPy arrays to Python lists"
+    
+    # Deserialization (client -> server)
+    deserialize:
+      enabled: true
+      method: "numpy.array"
+      # Convert Python lists back to NumPy arrays
+      description: "Convert Python lists to NumPy arrays"
+    
+    # Import statement for the library
+    import: "import numpy as np"
+    # Function to create array from list
+    array_creator: "np.array"
+    # Function to convert array to list
+    list_converter: "tolist"
+  
+  pytorch:
+    # Tool name prefixes that use PyTorch
+    tool_prefixes: ["torch_"]
+    # Serialization (server -> client)
+    serialize:
+      enabled: true
+      method: "tolist"
+      # Convert PyTorch tensors to Python lists for JSON transmission
+      description: "Convert PyTorch tensors to Python lists"
+    
+    # Deserialization (client -> server)
+    deserialize:
+      enabled: true
+      method: "torch.tensor"
+      # Convert Python lists back to PyTorch tensors
+      description: "Convert Python lists to PyTorch tensors"
+    
+    # Import statement for the library
+    import: "import torch"
+    # Function to create tensor from list
+    array_creator: "torch.tensor"
+    # Function to convert tensor to list
+    list_converter: "tolist"
+  
+  pandas:
+    # Tool name prefixes that use Pandas
+    tool_prefixes: ["pd_", "pandas_"]
+    # Serialization (server -> client)
+    serialize:
+      enabled: true
+      method: "to_dict"
+      # Convert Pandas DataFrames/Series to dictionaries
+      description: "Convert Pandas objects to dictionaries"
+    
+    # Deserialization (client -> server)
+    deserialize:
+      enabled: true
+      method: "pandas.DataFrame/pandas.Series"
+      # Convert dictionaries back to Pandas objects
+      description: "Convert dictionaries to Pandas objects"
+    
+    # Import statement for the library
+    import: "import pandas as pd"
+    # Function to create DataFrame from dict
+    array_creator: "pd.DataFrame"
+    # Function to convert DataFrame to dict
+    list_converter: "to_dict"
+
+# Argument mapping rules
+argument_mapping:
+  # Which arguments should be converted for each array type
+  numpy:
+    array_arguments: ["a", "array", "data", "x", "y"]
+    scalar_arguments: ["q", "percentile", "axis"]
+  
+  pytorch:
+    array_arguments: ["a", "tensor", "data", "x", "y"]
+    scalar_arguments: ["dim", "axis"]
+  
+  pandas:
+    array_arguments: ["data", "df", "series", "x", "y"]
+    scalar_arguments: ["axis", "level"]
+
+# Error handling
+error_handling:
+  # What to do if conversion fails
+  on_serialization_failure: "string"  # "string", "error", "pass_through"
+  on_deserialization_failure: "pass_through"  # "string", "error", "pass_through"
+  # Log conversion errors
+  log_errors: true
+  # Continue processing even if conversion fails
+  continue_on_error: true 

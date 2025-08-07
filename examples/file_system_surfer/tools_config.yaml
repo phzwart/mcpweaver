@@ -1,0 +1,33 @@
+# Example Tools Configuration
+# This file defines the tools available to the MCP server
+
+tools:
+  list_files:
+    python_path: "file_tools.list_files"
+    full_path: "examples/file_system_surfer/tools"
+    workflow_context:
+      description: "List files in a directory with optional pattern matching"
+  
+  read_file:
+    python_path: "file_tools.read_file"
+    full_path: "examples/file_system_surfer/tools"
+    workflow_context:
+      description: "Read contents of a file with optional line limit"
+  
+  count_lines:
+    python_path: "file_tools.count_lines"
+    full_path: "examples/file_system_surfer/tools"
+    workflow_context:
+      description: "Count lines in a file"
+  
+  get_file_info:
+    python_path: "file_tools.get_file_info"
+    full_path: "examples/file_system_surfer/tools"
+    workflow_context:
+      description: "Get detailed information about a file"
+  
+  search_files:
+    python_path: "file_tools.search_files"
+    full_path: "examples/file_system_surfer/tools"
+    workflow_context:
+      description: "Search for files with optional content search"
