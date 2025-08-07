@@ -289,8 +289,36 @@ class GenericMCPServer:
         
         return parameters
     
+    def _convert_python_type_to_json_schema(self, python_type: str) -> Dict[str, Any]:
+        """Convert Python type annotation to JSON Schema type.
+        
+        Args:
+            python_type: Python type annotation string
+            
+        Returns:
+            JSON Schema type definition
+        """
+        # Handle common Python types
+        if python_type in ['int', 'integer']:
+            return {"type": "integer"}
+        elif python_type in ['float', 'number']:
+            return {"type": "number"}
+        elif python_type in ['bool', 'boolean']:
+            return {"type": "boolean"}
+        elif python_type in ['str', 'string']:
+            return {"type": "string"}
+        elif python_type in ['list', 'List', 'array']:
+            return {"type": "array", "items": {"type": "string"}}
+        elif python_type in ['dict', 'Dict', 'object']:
+            return {"type": "object"}
+        elif python_type == 'Any':
+            return {"type": "string"}  # Default to string for Any
+        else:
+            # For complex types or unknown types, default to string
+            return {"type": "string"}
+
     def get_tools_list(self) -> List[Dict[str, Any]]:
-        """Get list of tools in MCP format."""
+        """Get list of tools in MCP format with proper JSON schemas."""
         tools_list = []
         
         for tool_name, tool_info in self.tools.items():
@@ -299,13 +327,24 @@ class GenericMCPServer:
             required = []
             
             for param_name, param_info in tool_info['parameters'].items():
-                properties[param_name] = {
-                    "type": param_info.get('type', 'string'),
-                    "description": param_info.get('description', f"Parameter {param_name}")
-                }
+                # Convert Python type to JSON Schema type
+                param_type = param_info.get('type', 'Any')
+                json_schema_type = self._convert_python_type_to_json_schema(param_type)
+                
+                # Add description
+                json_schema_type["description"] = param_info.get('description', f"Parameter {param_name}")
+                
+                # Add default value if available
+                if param_info.get('default') is not None:
+                    json_schema_type["default"] = param_info['default']
+                
+                properties[param_name] = json_schema_type
+                
+                # Add to required array if parameter is required
                 if param_info.get('required', False):
                     required.append(param_name)
             
+            # Build the complete tool definition
             tool_dict = {
                 "name": tool_name,
                 "description": tool_info['description'],
@@ -314,7 +353,8 @@ class GenericMCPServer:
                     "properties": properties,
                     "required": required
                 },
-                "outputSchema": {"type": "object", "properties": {}}
+                "outputSchema": {"type": "object"},
+                "parameters": tool_info['parameters']  # Keep for backwards compatibility
             }
             tools_list.append(tool_dict)
         

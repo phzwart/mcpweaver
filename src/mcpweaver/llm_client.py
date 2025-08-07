@@ -784,9 +784,17 @@ class LLMClient:
                                 print(f"🤖 Raw response: {llm_response}")
                                 return [], {}
                     
-                    selected_tools = llm_json.get('tools', [])
-                    arguments = llm_json.get('arguments', {})
-                    return selected_tools, arguments
+                    # Handle new step-based plan format
+                    if 'plan' in llm_json:
+                        plan = llm_json.get('plan', [])
+                        selected_tools = [step.get('tool') for step in plan if step.get('tool')]
+                        arguments = {step.get('tool'): step.get('arguments', {}) for step in plan if step.get('tool')}
+                        return selected_tools, arguments
+                    else:
+                        # Legacy format support
+                        selected_tools = llm_json.get('tools', [])
+                        arguments = llm_json.get('arguments', {})
+                        return selected_tools, arguments
                     
                 except Exception as e:
                     print(f"❌ Failed to parse LLM JSON response: {e}")
@@ -832,8 +840,13 @@ class LLMClient:
             return self.generate_response(query, results)
         else:
             # LLM didn't select any tools, show available tools
-            tools = self.config.get('tools', {})
-            print(f"🛠️  Available tools: {', '.join(tools.keys())}")
+            try:
+                server_tools = self.get_available_tools()
+                tool_names = [tool.get('name') for tool in server_tools]
+                print(f"🛠️  Available tools: {', '.join(tool_names)}")
+            except:
+                tools = self.config.get('tools', {})
+                print(f"🛠️  Available tools: {', '.join(tools.keys())}")
             print(f"💡 Tip: Be specific about what you want me to do")
             return self.generate_tools_info_response()
 

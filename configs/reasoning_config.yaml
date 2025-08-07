@@ -5,61 +5,56 @@ llm:
   model: "gpt-oss:20b"
   provider: "ollama" 
   api_url: "http://localhost:11434/api/generate"
-  timeout: 60
+  timeout: 10
   options:
-    temperature: 0.1
-    top_p: 0.9
+    temperature: 0.0
+    top_p: 1.0
 
 reasoning:
   system_prompt_template: |
-    You are an AI assistant that creates action plans for executing functions.
+    You are an AI assistant that creates step-based execution plans for tools.
     
     Available tools:
     {tools}
     
-    Your task is to create a linear action plan where each action is a tool with its arguments.
-    The actions will be executed in sequence. Parse the query and create the action plan.
+    Your task is to create an ordered plan where each step is a tool with its arguments and reasoning.
+    The steps will be executed in sequence. Parse the query and create the execution plan.
+    
+    IMPORTANT RULES:
+    - Tool names must match exactly from the list above
+    - If required parameters are missing from the query, use placeholder values
+    - Each step must include a 'why' field explaining the reasoning
+    - Return a JSON object with 'plan' array and 'confidence' number
   
   user_prompt_template: "User query: {query}"
 
-# JSON Schema for action plan format (linear actions)
+# JSON Schema for step-based plan format
 json_schema:
   type: "object"
   properties:
-    action1:
-      type: "object"
-      properties:
-        tool:
-          type: "string"
-          enum: ["np_mean", "np_std", "np_sum", "torch_tensor", "torch_mean", "prompt_generator"]
-        arguments:
-          type: "object"
-      required: ["tool", "arguments"]
-    action2:
-      type: "object"
-      properties:
-        tool:
-          type: "string"
-          enum: ["np_mean", "np_std", "np_sum", "torch_tensor", "torch_mean", "prompt_generator"]
-        arguments:
-          type: "object"
-      required: ["tool", "arguments"]
-    action3:
-      type: "object"
-      properties:
-        tool:
-          type: "string"
-          enum: ["np_mean", "np_std", "np_sum", "torch_tensor", "torch_mean", "prompt_generator"]
-        arguments:
-          type: "object"
-      required: ["tool", "arguments"]
-    reasoning:
-      type: "string"
+    plan:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          tool:
+            type: "string"
+            description: "Name of the tool to execute"
+          arguments:
+            type: "object"
+            description: "Arguments for the tool"
+          why:
+            type: "string"
+            description: "Explanation of why this step is needed"
+        required: ["tool", "arguments", "why"]
+      description: "Ordered list of execution steps"
+      minItems: 1
     confidence:
       type: "number"
+      description: "Confidence level in the execution plan"
       minimum: 0.0
       maximum: 1.0
-  required: ["action1", "reasoning", "confidence"]
+  required: ["plan", "confidence"]
 
 response_format:
   include_confidence: true
