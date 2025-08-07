@@ -1,27 +1,25 @@
-# Number Weaver Client Configuration
-# This shows how to configure the client for numpy-based statistical analysis
+# Simplified Client Configuration with Dynamic Schema Generation
+# This shows how to configure the client without hardcoded JSON schemas
 
 llm:
   model: "phi3:mini"
-  provider: "ollama"     # ollama, openai, anthropic, etc.
-  api_url: "http://localhost:11434/api/generate"  # API endpoint for the provider
-  timeout: 30  # Timeout in seconds for LLM requests
+  provider: "ollama"
+  api_url: "http://localhost:11434/api/generate"
+  timeout: 30
   options:
     temperature: 0.1
     top_p: 0.9
-  # No need for json_schema - it's generated automatically!
+  # No json_schema needed - it's generated dynamically from the server!
 
 mcp_server:
   host: "localhost"
   port: 8080
-  timeout: 10  # Timeout in seconds for MCP server requests
+  timeout: 10
 
 # Serialization configuration for handling NumPy arrays
 serialization:
-  # Use default conversions file from the package
   enabled: true
-  # Default behavior for unknown types
-  default_behavior: "string"  # "string", "error", "pass_through"
+  default_behavior: "string"
 
 # Behavior and Prompt Instructions
 behavior:
@@ -38,44 +36,6 @@ behavior:
     4. Follow the configured workflow patterns
     
     Always explain your reasoning and what tools you're using.
-
-# Tool Selection Rules (LLM will decide based on query)
-tool_selection:
-  # Available tools for LLM to choose from
-  np_mean:
-    description: "Calculate the arithmetic mean of array elements"
-    
-  np_std:
-    description: "Compute the standard deviation along the specified axis"
-    
-  np_quantile:
-    description: "Compute the q-th quantile of the data along the specified axis"
-    
-  np_median:
-    description: "Compute the median along the specified axis"
-    
-  np_min:
-    description: "Return the minimum of an array or minimum along an axis"
-    
-  np_max:
-    description: "Return the maximum of an array or maximum along an axis"
-    
-  np_sum:
-    description: "Sum of array elements over a given axis"
-    
-  np_var:
-    description: "Compute the variance along the specified axis"
-    
-  np_random_normal:
-    description: "Draw random samples from a normal (Gaussian) distribution"
-    
-  np_random_uniform:
-    description: "Draw samples from a uniform distribution"
-
-# Default behavior when no specific tools are requested
-default_behavior:
-  show_tools_info: true
-  suggest_common_queries: true
 
 # Tool Usage Guidelines with Keywords
 tools:
@@ -164,84 +124,12 @@ response_format:
   provide_summary: true
   suggest_next_steps: true
 
-# Summary Logic (configurable per tool)
-summary_logic:
-  np_mean:
-    success_message: "✅ Mean calculated successfully"
-    failure_message: "❌ Could not calculate mean"
-  
-  np_std:
-    success_message: "✅ Standard deviation calculated successfully"
-    failure_message: "❌ Could not calculate standard deviation"
-
 # Next Steps Suggestions
 next_steps:
   - "Ask me to calculate other statistics (median, variance, etc.)"
   - "Request to generate random data for testing"
   - "Ask me to analyze the distribution of your data"
   - "Request to compare different datasets"
-
-# Response Templates
-response_templates:
-  tools_info_header: "🛠️ **Available Tools:**"
-  reasoning_header: "🤔 **My Reasoning:**"
-  tool_results_header: "🔧 **Tool Results:**"
-  summary_header: "📊 **Summary:**"
-  next_steps_header: "💡 **Next Steps:**"
-  next_steps_default:
-    - "Ask me to use any of these statistical tools"
-    - "Request specific numerical computations"
-    - "Ask for help with data analysis"
-
-# Argument Extraction Rules
-argument_extraction:
-  np_mean:
-    a:
-      from_tool: "np_random_normal"
-      field: "result"
-      type: "first"
-  
-  np_std:
-    a:
-      from_tool: "np_random_normal"
-      field: "result"
-      type: "first"
-  
-  np_quantile:
-    a:
-      from_tool: "np_random_normal"
-      field: "result"
-      type: "first"
-  
-  np_median:
-    a:
-      from_tool: "np_random_normal"
-      field: "result"
-      type: "first"
-  
-  np_min:
-    a:
-      from_tool: "np_random_normal"
-      field: "result"
-      type: "first"
-  
-  np_max:
-    a:
-      from_tool: "np_random_normal"
-      field: "result"
-      type: "first"
-  
-  np_sum:
-    a:
-      from_tool: "np_random_normal"
-      field: "result"
-      type: "first"
-  
-  np_var:
-    a:
-      from_tool: "np_random_normal"
-      field: "result"
-      type: "first"
 
 # LLM Reasoning Configuration
 llm_reasoning:
@@ -266,12 +154,5 @@ llm_reasoning:
     - For subsequent tools that use the output from previous tools, use "USE_OUTPUT_FROM_[tool_name]" as the 'a' parameter
     - The system will automatically replace this placeholder with the actual output from the previous tool
 
-    Examples:
-    - "calculate the mean of [1,2,3,4,5]" → {{"tools": ["np_mean"], "arguments": {{"np_mean": {{"a": [1,2,3,4,5]}}}}}}
-    - "generate 100 random numbers from normal distribution" → {{"tools": ["np_random_normal"], "arguments": {{"np_random_normal": {{"loc": 0, "scale": 1, "size": 100}}}}}}
-    - "generate 10 random numbers and find their mean" → {{"tools": ["np_random_normal", "np_mean"], "arguments": {{"np_random_normal": {{"loc": 0, "scale": 1, "size": 10}}, "np_mean": {{"a": "USE_OUTPUT_FROM_np_random_normal"}}}}}}
-    - "generate 20 random numbers and compute the 0.25 quantile" → {{"tools": ["np_random_normal", "np_quantile"], "arguments": {{"np_random_normal": {{"loc": 0, "scale": 1, "size": 20}}, "np_quantile": {{"a": "USE_OUTPUT_FROM_np_random_normal", "q": 0.25}}}}}}
-    - "generate 5 random numbers and find their standard deviation" → {{"tools": ["np_random_normal", "np_std"], "arguments": {{"np_random_normal": {{"loc": 0, "scale": 1, "size": 5}}, "np_std": {{"a": "USE_OUTPUT_FROM_np_random_normal"}}}}}}
-
   user_prompt_template: "User query: {query}"
-  json_extraction_regex: r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'  # More precise JSON extraction 
+  json_extraction_regex: r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}' 

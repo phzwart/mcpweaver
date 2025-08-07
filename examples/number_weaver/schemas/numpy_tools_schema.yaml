@@ -1,0 +1,103 @@
+# NumPy Tools JSON Schema
+# This file contains the JSON schema for structured output when using NumPy tools
+
+type: "object"
+properties:
+  tools:
+    type: "array"
+    items:
+      type: "string"
+      enum: ["np_mean", "np_std", "np_quantile", "np_median", "np_min", "np_max", "np_sum", "np_var", "np_random_normal", "np_random_uniform"]
+    description: "List of tool names to use"
+  arguments:
+    type: "object"
+    properties:
+      np_mean:
+        type: "object"
+        properties:
+          a:
+            type: "array"
+            description: "Input array"
+      np_std:
+        type: "object"
+        properties:
+          a:
+            type: "array"
+            description: "Input array"
+          axis:
+            type: "integer"
+            description: "Axis along which to compute"
+      np_quantile:
+        type: "object"
+        properties:
+          a:
+            type: "array"
+            description: "Input array"
+          q:
+            type: "number"
+            description: "Quantile to compute (0-1)"
+      np_median:
+        type: "object"
+        properties:
+          a:
+            type: "array"
+            description: "Input array"
+      np_min:
+        type: "object"
+        properties:
+          a:
+            type: "array"
+            description: "Input array"
+      np_max:
+        type: "object"
+        properties:
+          a:
+            type: "array"
+            description: "Input array"
+      np_sum:
+        type: "object"
+        properties:
+          a:
+            type: "array"
+            description: "Input array"
+      np_var:
+        type: "object"
+        properties:
+          a:
+            type: "array"
+            description: "Input array"
+      np_random_normal:
+        type: "object"
+        properties:
+          loc:
+            type: "number"
+            description: "Mean of the distribution"
+          scale:
+            type: "number"
+            description: "Standard deviation"
+          size:
+            oneOf:
+              - type: "integer"
+              - type: "array"
+                items:
+                  type: "integer"
+            description: "Output shape (int or tuple)"
+      np_random_uniform:
+        type: "object"
+        properties:
+          low:
+            type: "number"
+            description: "Lower boundary"
+          high:
+            type: "number"
+            description: "Upper boundary"
+          size:
+            oneOf:
+              - type: "integer"
+              - type: "array"
+                items:
+                  type: "integer"
+            description: "Output shape (int or tuple)"
+    additionalProperties: false
+    description: "Arguments for each tool"
+required: ["tools", "arguments"] 
