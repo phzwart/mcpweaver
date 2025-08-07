@@ -5,7 +5,7 @@ This directory contains various examples demonstrating how to use MCP Weaver wit
 ## Available Examples
 
 ### 📁 File System Surfer
-**Location**: `file_system_surfer/`
+**Location**: `file_system_weaver/`
 
 A complete example showing how to build file system tools for browsing, reading, and analyzing files.
 
@@ -19,10 +19,10 @@ A complete example showing how to build file system tools for browsing, reading,
 **Usage**:
 ```bash
 # Start server (from project root)
-mcpweaver server examples/file_system_surfer/tools_config.yaml --host localhost --port 8080
+mcpweaver server examples/file_system_weaver/tools_config.yaml --host localhost --port 8080
 
 # Run client (from project root)
-mcpweaver client examples/file_system_surfer/client_config.yaml "List files"
+mcpweaver client examples/file_system_weaver/client_config.yaml "List files"
 ```
 
 ## Example Structure

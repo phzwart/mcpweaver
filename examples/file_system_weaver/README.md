@@ -18,7 +18,7 @@ This example demonstrates how to use MCP Weaver with file system tools.
 
 ```bash
 # From the project root directory
-mcpweaver server examples/file_system_surfer/tools_config.yaml --host localhost --port 8080
+mcpweaver server examples/file_system_weaver/tools_config.yaml --host localhost --port 8080
 ```
 
 ### Run the Client
@@ -27,16 +27,16 @@ mcpweaver server examples/file_system_surfer/tools_config.yaml --host localhost 
 
 ```bash
 # Interactive mode
-mcpweaver client examples/file_system_surfer/client_config.yaml --interactive
+mcpweaver client examples/file_system_weaver/client_config.yaml --interactive
 
 # Single query
-mcpweaver client examples/file_system_surfer/client_config.yaml "List files in the current directory"
+mcpweaver client examples/file_system_weaver/client_config.yaml "List files in the current directory"
 
 # Read a specific file
-mcpweaver client examples/file_system_surfer/client_config.yaml "Read the README.md file"
+mcpweaver client examples/file_system_weaver/client_config.yaml "Read the README.md file"
 
 # Count lines in a file
-mcpweaver client examples/file_system_surfer/client_config.yaml "Count lines in pyproject.toml"
+mcpweaver client examples/file_system_weaver/client_config.yaml "Count lines in pyproject.toml"
 ```
 
 ## Configuration
@@ -53,7 +53,7 @@ The tools use `full_path` injection to handle imports from any directory:
 tools:
   list_files:
     python_path: "file_tools.list_files"
-    full_path: "examples/file_system_surfer/tools"  # Directory to add to Python path
+    full_path: "examples/file_system_weaver/tools"  # Directory to add to Python path
     workflow_context:
       description: "List files in a directory"
 ```

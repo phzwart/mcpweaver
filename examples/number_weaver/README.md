@@ -69,12 +69,12 @@ tensorflow:
 
 1. Start the MCP server:
 ```bash
-python -m src.mcpweaver server examples/number_surfer/tools_config.yaml
+python -m src.mcpweaver server examples/number_weaver/tools_config.yaml
 ```
 
 2. Run the client:
 ```bash
-python -m src.mcpweaver client examples/number_surfer/client_config.yaml "generate 10 random numbers and find their mean"
+python -m src.mcpweaver client examples/number_weaver/client_config.yaml "generate 10 random numbers and find their mean"
 ```
 
 ## Example Queries
