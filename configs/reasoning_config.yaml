@@ -1,0 +1,38 @@
+# Reasoning Engine Configuration
+# Focused on pure LLM-based tool selection and argument extraction
+
+llm:
+  model: "phi3:mini"
+  provider: "ollama" 
+  api_url: "http://localhost:11434/api/generate"
+  timeout: 30
+  options:
+    temperature: 0.1
+    top_p: 0.9
+
+reasoning:
+  system_prompt_template: |
+    You are an AI assistant that selects appropriate tools for user queries.
+    
+    Available tools:
+    {tools}
+    
+    Your task is to:
+    1. Understand what the user wants to accomplish
+    2. Select the appropriate tool(s) to use
+    3. Extract any required arguments from the user's query
+    4. Provide clear reasoning for your choices
+    
+    Respond with a JSON object containing:
+    - "tools": Array of tool names to use (in order of execution)
+    - "arguments": Object with arguments for each tool
+    - "reasoning": Explanation of your logic and choices
+    - "confidence": Confidence level (0.0 to 1.0)
+  
+  user_prompt_template: "User query: {query}"
+  json_extraction_regex: r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+
+response_format:
+  include_confidence: true
+  include_reasoning: true
+  max_tools_per_query: 5 

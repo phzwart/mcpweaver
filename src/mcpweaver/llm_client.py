@@ -72,6 +72,136 @@ class LLMClient:
         """Convert arguments to appropriate types based on conversion configuration."""
         return self.conversion_manager.convert_arguments(tool_name, arguments)
 
+    def reason_about_query(self, query: str, available_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Pure reasoning - returns action plan, doesn't execute anything!
+        
+        Args:
+            query: User's natural language query
+            available_tools: List of available tools from MCP server
+            
+        Returns:
+            Action plan with tools and arguments to execute
+        """
+        print(f"🧠 Reasoning about query: {query}")
+        
+        # Build tool info for LLM
+        tool_info = []
+        for tool in available_tools:
+            tool_name = tool.get('name', 'unknown')
+            description = tool.get('description', 'No description')
+            parameters = tool.get('parameters', {})
+            
+            param_info = []
+            for param_name, param_data in parameters.items():
+                param_type = param_data.get('type', 'Any')
+                required = param_data.get('required', False)
+                desc = param_data.get('description', f'Parameter {param_name}')
+                
+                if required:
+                    param_info.append(f"    {param_name} ({param_type}): {desc} [required]")
+                else:
+                    default = param_data.get('default', 'None')
+                    param_info.append(f"    {param_name} ({param_type}): {desc} [default: {default}]")
+            
+            if param_info:
+                tool_info.append(f"- {tool_name}: {description}\n  Parameters:\n" + "\n".join(param_info))
+            else:
+                tool_info.append(f"- {tool_name}: {description}")
+        
+        # Get LLM reasoning configuration
+        llm_reasoning_config = self.config.get('llm_reasoning', {})
+        system_prompt_template = llm_reasoning_config.get('system_prompt_template', 
+            "You are an AI assistant that helps users with operations.\n\nAvailable tools:\n{tools}\n\nYour task is to select appropriate tools and extract arguments.")
+        user_prompt_template = llm_reasoning_config.get('user_prompt_template', "User query: {query}\n\nRespond with JSON only:")
+        
+        # Format the system prompt with available tools
+        system_prompt = system_prompt_template.format(tools="\n".join(tool_info))
+        user_prompt = user_prompt_template.format(query=query)
+        
+        # Call LLM for reasoning only
+        try:
+            # Get LLM configuration
+            llm_config = self.config.get('llm', {})
+            model = llm_config.get('model', 'phi3:mini')
+            provider = llm_config.get('provider', 'ollama')
+            api_url = llm_config.get('api_url', 'http://localhost:11434/api/generate')
+            timeout = llm_config.get('timeout', 30)
+            options = llm_config.get('options', {'temperature': 0.1, 'top_p': 0.9})
+            
+            # Try to generate schema from server first, fallback to config
+            json_schema = self.generate_json_schema_from_server()
+            if not json_schema:
+                # Fallback to config schema if available
+                json_schema = llm_config.get('json_schema')
+            
+            # Build the request to the LLM provider
+            payload = {
+                "model": model,
+                "prompt": f"{system_prompt}\n\n{user_prompt}",
+                "stream": False,
+                "options": options
+            }
+            
+            # Add JSON schema if available (Ollama native support)
+            if json_schema:
+                payload["format"] = "json"
+                payload["options"]["json_schema"] = json_schema
+            
+            print(f"🤖 Calling LLM ({provider}:{model}) for reasoning...")
+            response = requests.post(api_url, json=payload, timeout=timeout)
+            
+            if response.status_code == 200:
+                result = response.json()
+                llm_response = result.get('response', '').strip()
+                print(f"🤖 LLM Reasoning Response: {llm_response}")
+                
+                # Parse JSON response
+                try:
+                    # With Ollama's native JSON Schema support, response should be properly structured
+                    if json_schema:
+                        # Direct JSON parsing (Ollama guarantees valid JSON)
+                        llm_json = json.loads(llm_response.strip())
+                    else:
+                        # Fallback to regex extraction for non-schema responses
+                        try:
+                            llm_json = json.loads(llm_response.strip())
+                        except json.JSONDecodeError:
+                            import re
+                            json_extraction_regex = llm_reasoning_config.get('json_extraction_regex', r'\{.*\}')
+                            json_match = re.search(json_extraction_regex, llm_response, re.DOTALL)
+                            if json_match:
+                                llm_json = json.loads(json_match.group())
+                            else:
+                                print(f"❌ Could not extract JSON from response")
+                                print(f"🤖 Raw response: {llm_response}")
+                                return {'tools': [], 'arguments': {}, 'error': 'Could not parse LLM response'}
+                    
+                    selected_tools = llm_json.get('tools', [])
+                    arguments = llm_json.get('arguments', {})
+                    reasoning = llm_json.get('reasoning', '')
+                    
+                    action_plan = {
+                        'tools': selected_tools,
+                        'arguments': arguments,
+                        'reasoning': reasoning
+                    }
+                    
+                    print(f"✅ Action Plan: {action_plan}")
+                    return action_plan
+                    
+                except Exception as e:
+                    print(f"❌ Failed to parse LLM JSON response: {e}")
+                    print(f"🤖 Raw response: {llm_response}")
+                    return {'tools': [], 'arguments': {}, 'error': f'Failed to parse response: {e}'}
+                    
+            else:
+                print(f"❌ LLM API error: {response.status_code}")
+                return {'tools': [], 'arguments': {}, 'error': f'LLM API error: {response.status_code}'}
+                
+        except Exception as e:
+            print(f"❌ Error calling LLM: {e}")
+            return {'tools': [], 'arguments': {}, 'error': f'Error calling LLM: {e}'}
+
     def call_mcp_tool(self, tool_name: str, arguments: Dict[str, Any] = None) -> Any:
         """Call a tool through the MCP server."""
         if arguments is None:
@@ -196,15 +326,11 @@ class LLMClient:
                                 else:
                                     arguments[arg_name] = first_item
                     elif extraction_type == 'direct':
-                        # Direct field extraction
-                        if isinstance(source_data, dict) and source_field:
+                        # Use the data directly
+                        if source_field and isinstance(source_data, dict):
                             arguments[arg_name] = source_data.get(source_field, '')
                         else:
                             arguments[arg_name] = source_data
-            else:
-                # Simple string rule - direct mapping
-                if extraction_rule in previous_results:
-                    arguments[arg_name] = previous_results[extraction_rule]
         
         return arguments
     
@@ -337,7 +463,8 @@ class LLMClient:
             
             if response.status_code == 200:
                 result = response.json()
-                return result.get("result")
+                if "result" in result:
+                    return result["result"]
             
             return None
             
@@ -346,81 +473,72 @@ class LLMClient:
             return None
 
     def generate_json_schema_from_server(self) -> Optional[Dict[str, Any]]:
-        """Generate JSON schema dynamically from MCP server tool information."""
+        """Generate JSON schema from available tools on the server."""
         try:
-            # Get tools from server
-            tools = self.get_available_tools()
+            server_tools = self.get_available_tools()
             
-            if not tools:
-                print("⚠️  No tools available from server")
+            if not server_tools:
                 return None
             
-            # Build schema properties
-            tool_names = [tool['name'] for tool in tools]
-            argument_properties = {}
-            
-            for tool in tools:
-                tool_name = tool['name']
-                # Get detailed tool info including parameters
-                tool_info = self.get_tool_info_from_server(tool_name)
-                
-                if tool_info and 'parameters' in tool_info:
-                    # Build argument schema for this tool
-                    arg_schema = {
-                        "type": "object",
-                        "properties": {}
-                    }
-                    
-                    required_params = []
-                    
-                    for param_name, param_info in tool_info['parameters'].items():
-                        param_type = param_info.get('type', 'string')
-                        description = param_info.get('description', f'Parameter {param_name}')
-                        required = param_info.get('required', False)
-                        
-                        # Convert Python types to JSON schema types
-                        json_type = self._convert_python_type_to_json(param_type)
-                        
-                        arg_schema["properties"][param_name] = {
-                            "type": json_type,
-                            "description": description
-                        }
-                        
-                        if required:
-                            required_params.append(param_name)
-                    
-                    if required_params:
-                        arg_schema["required"] = required_params
-                    
-                    argument_properties[tool_name] = arg_schema
-                else:
-                    # Fallback for tools without detailed parameter info
-                    argument_properties[tool_name] = {
-                        "type": "object",
-                        "properties": {},
-                        "description": f"Arguments for {tool_name}"
-                    }
-            
-            # Build the complete schema
+            # Build schema based on available tools
             schema = {
                 "type": "object",
                 "properties": {
                     "tools": {
                         "type": "array",
-                        "items": {"type": "string", "enum": tool_names},
+                        "items": {"type": "string"},
                         "description": "List of tool names to use"
                     },
                     "arguments": {
                         "type": "object",
-                        "properties": argument_properties,
-                        "additionalProperties": False,
                         "description": "Arguments for each tool"
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "Explanation of reasoning"
                     }
                 },
                 "required": ["tools", "arguments"]
             }
             
-            print(f"✅ Generated JSON schema with {len(tool_names)} tools")
+            # Add tool-specific argument schemas
+            arguments_schema = {}
+            tool_enum = []
+            
+            for tool in server_tools:
+                tool_name = tool.get('name', 'unknown')
+                tool_enum.append(tool_name)
+                
+                # Get tool parameters
+                param_info = self.get_tool_parameters_from_server(tool_name)
+                if param_info:
+                    tool_schema = {
+                        "type": "object",
+                        "properties": {}
+                    }
+                    
+                    for param_line in param_info:
+                        # Parse parameter line like "    file_path (string): File path [required]"
+                        if param_line.strip().startswith("    "):
+                            param_parts = param_line.strip().split(" (")
+                            if len(param_parts) >= 2:
+                                param_name = param_parts[0]
+                                type_part = param_parts[1].split(")")[0]
+                                
+                                # Map Python types to JSON types
+                                json_type = self._convert_python_type_to_json(type_part)
+                                
+                                tool_schema["properties"][param_name] = {
+                                    "type": json_type,
+                                    "description": param_line.split(": ")[-1].split(" [")[0] if ": " in param_line else ""
+                                }
+                    
+                    arguments_schema[tool_name] = tool_schema
+            
+            # Update the main schema
+            schema["properties"]["tools"]["items"]["enum"] = tool_enum
+            schema["properties"]["arguments"]["properties"] = arguments_schema
+            
             return schema
             
         except Exception as e:
@@ -428,28 +546,24 @@ class LLMClient:
             return None
 
     def _convert_python_type_to_json(self, python_type: str) -> str:
-        """Convert Python type annotations to JSON schema types."""
+        """Convert Python type to JSON schema type."""
         type_mapping = {
-            'str': 'string',
             'string': 'string',
-            'int': 'integer',
+            'str': 'string',
             'integer': 'integer',
-            'float': 'number',
+            'int': 'integer',
             'number': 'number',
-            'bool': 'boolean',
+            'float': 'number',
             'boolean': 'boolean',
-            'list': 'array',
+            'bool': 'boolean',
             'array': 'array',
-            'dict': 'object',
+            'list': 'array',
             'object': 'object',
-            'Any': 'string',  # Default to string for unknown types
-            'typing.Any': 'string'
+            'dict': 'object',
+            'Any': 'string'  # Default to string for unknown types
         }
         
-        # Clean up the type string
-        clean_type = python_type.replace('typing.', '').replace('numpy.', '').replace('np.', '')
-        
-        return type_mapping.get(clean_type, 'string')
+        return type_mapping.get(python_type.lower(), 'string')
     
     def generate_response(self, query: str, tool_results: Dict[str, Any]) -> str:
         """Generate a response based on tool results and configuration."""

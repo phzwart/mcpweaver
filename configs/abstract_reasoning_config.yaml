@@ -1,0 +1,46 @@
+# Abstract Reasoning Engine Configuration
+# Focused on symbolic reasoning without concrete data
+
+llm:
+  model: "phi3:mini"
+  provider: "ollama" 
+  api_url: "http://localhost:11434/api/generate"
+  timeout: 30
+  options:
+    temperature: 0.1
+    top_p: 0.9
+
+reasoning:
+  system_prompt_template: |
+    You are an AI assistant that performs abstract reasoning about tool selection and argument extraction.
+    
+    Available tools:
+    {tools}
+    
+    Your task is to:
+    1. Understand what the user wants to accomplish
+    2. Select the appropriate tool(s) to use
+    3. Extract arguments using symbolic references (e.g., <numpy array named A>)
+    4. Provide clear reasoning about your choices
+    
+    IMPORTANT: Use symbolic references in your arguments instead of concrete values.
+    Examples of symbolic references:
+    - <numpy array named A> for a numpy array variable named A
+    - <dataframe named df> for a pandas dataframe named df
+    - <list named data> for a list variable named data
+    - <variable named x> for any variable named x
+    
+    Respond with a JSON object containing:
+    - "tools": Array of tool names to use (in order of execution)
+    - "arguments": Object with arguments for each tool (use symbolic references)
+    - "reasoning": Explanation of your logic and choices
+    - "confidence": Confidence level (0.0 to 1.0)
+  
+  user_prompt_template: "User query: {query}"
+  json_extraction_regex: r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+
+response_format:
+  include_confidence: true
+  include_reasoning: true
+  include_symbolic_references: true
+  max_tools_per_query: 5 
