@@ -2,35 +2,64 @@
 # Focused on pure LLM-based tool selection and argument extraction
 
 llm:
-  model: "phi3:mini"
+  model: "gpt-oss:20b"
   provider: "ollama" 
   api_url: "http://localhost:11434/api/generate"
-  timeout: 30
+  timeout: 60
   options:
     temperature: 0.1
     top_p: 0.9
 
 reasoning:
   system_prompt_template: |
-    You are an AI assistant that selects appropriate tools for user queries.
+    You are an AI assistant that creates action plans for executing functions.
     
     Available tools:
     {tools}
     
-    Your task is to:
-    1. Understand what the user wants to accomplish
-    2. Select the appropriate tool(s) to use
-    3. Extract any required arguments from the user's query
-    4. Provide clear reasoning for your choices
-    
-    Respond with a JSON object containing:
-    - "tools": Array of tool names to use (in order of execution)
-    - "arguments": Object with arguments for each tool
-    - "reasoning": Explanation of your logic and choices
-    - "confidence": Confidence level (0.0 to 1.0)
+    Your task is to create a linear action plan where each action is a tool with its arguments.
+    The actions will be executed in sequence. Parse the query and create the action plan.
   
   user_prompt_template: "User query: {query}"
-  json_extraction_regex: r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+
+# JSON Schema for action plan format (linear actions)
+json_schema:
+  type: "object"
+  properties:
+    action1:
+      type: "object"
+      properties:
+        tool:
+          type: "string"
+          enum: ["np_mean", "np_std", "np_sum", "torch_tensor", "torch_mean", "prompt_generator"]
+        arguments:
+          type: "object"
+      required: ["tool", "arguments"]
+    action2:
+      type: "object"
+      properties:
+        tool:
+          type: "string"
+          enum: ["np_mean", "np_std", "np_sum", "torch_tensor", "torch_mean", "prompt_generator"]
+        arguments:
+          type: "object"
+      required: ["tool", "arguments"]
+    action3:
+      type: "object"
+      properties:
+        tool:
+          type: "string"
+          enum: ["np_mean", "np_std", "np_sum", "torch_tensor", "torch_mean", "prompt_generator"]
+        arguments:
+          type: "object"
+      required: ["tool", "arguments"]
+    reasoning:
+      type: "string"
+    confidence:
+      type: "number"
+      minimum: 0.0
+      maximum: 1.0
+  required: ["action1", "reasoning", "confidence"]
 
 response_format:
   include_confidence: true

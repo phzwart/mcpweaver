@@ -23,6 +23,57 @@ from .conversion_manager import ConversionManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def generate_tool_context(tools: List[Dict[str, Any]], query: str = None) -> str:
+    """Generate context about how tools work together.
+    
+    This function lives inside the main MCP server and analyzes
+    the available tools to generate helpful context for reasoning.
+    
+    Args:
+        tools: List of available tools with their definitions
+        query: Optional user query to analyze
+        
+    Returns:
+        Context string about tool relationships and usage patterns
+    """
+    context_parts = []
+    
+    # Analyze tool categories
+    numpy_tools = [t for t in tools if t['name'].startswith('np_')]
+    torch_tools = [t for t in tools if t['name'].startswith('torch_')]
+    
+    # Generate category-specific context
+    if numpy_tools:
+        context_parts.append("Numpy tools are for numerical computations on arrays:")
+        for tool in numpy_tools:
+            context_parts.append(f"- {tool['name']}: {tool.get('description', 'No description')}")
+    
+    if torch_tools:
+        context_parts.append("PyTorch tools are for tensor operations:")
+        for tool in torch_tools:
+            context_parts.append(f"- {tool['name']}: {tool.get('description', 'No description')}")
+    
+    # Generate workflow patterns
+    if numpy_tools and torch_tools:
+        context_parts.append("\nCommon workflows:")
+        context_parts.append("- Use torch_tensor to create tensors from arrays")
+        context_parts.append("- Use torch_mean for tensor operations")
+        context_parts.append("- Use np_* functions for array operations")
+    
+    # Query-specific context
+    if query:
+        context_parts.append(f"\nQuery analysis: {query}")
+        if 'mean' in query.lower():
+            context_parts.append("- Consider np_mean for arrays or torch_mean for tensors")
+        if 'std' in query.lower() or 'sigma' in query.lower():
+            context_parts.append("- Use np_std for standard deviation calculations")
+        if 'sum' in query.lower():
+            context_parts.append("- Use np_sum for array summation")
+    
+    return "\n".join(context_parts)
+
+
 class GenericMCPServer:
     """Generic MCP server that loads tools from YAML configuration."""
     
@@ -243,10 +294,26 @@ class GenericMCPServer:
         tools_list = []
         
         for tool_name, tool_info in self.tools.items():
+            # Build input schema from extracted parameters
+            properties = {}
+            required = []
+            
+            for param_name, param_info in tool_info['parameters'].items():
+                properties[param_name] = {
+                    "type": param_info.get('type', 'string'),
+                    "description": param_info.get('description', f"Parameter {param_name}")
+                }
+                if param_info.get('required', False):
+                    required.append(param_name)
+            
             tool_dict = {
                 "name": tool_name,
                 "description": tool_info['description'],
-                "inputSchema": {"type": "object", "properties": {}},
+                "inputSchema": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": required
+                },
                 "outputSchema": {"type": "object", "properties": {}}
             }
             tools_list.append(tool_dict)

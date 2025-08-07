@@ -1,0 +1,70 @@
+# Server Configuration for Notebook Tools
+# This file defines numpy and torch tools available to the MCP server
+
+# Serialization configuration for handling array types
+serialization:
+  enabled: true
+  default_behavior: "string"  # "string", "error", "pass_through"
+
+# Prompts for the prompt generator
+prompts:
+  general_context: |
+    This server provides numerical computation tools for arrays and tensors.
+    Numpy tools work with arrays, PyTorch tools work with tensors.
+    
+  tool_context:
+    np_mean: "Calculate arithmetic mean of array elements"
+    np_std: "Calculate standard deviation of array elements" 
+    np_sum: "Sum array elements"
+    torch_tensor: "Create PyTorch tensor from array-like data"
+    torch_mean: "Calculate mean of tensor elements"
+    
+  workflows:
+    "Statistical Analysis": "Use np_mean, np_std, np_sum for array statistics"
+    "Array to Tensor": "Use torch_tensor to convert arrays, then torch_mean for tensor operations"
+    
+  query_hints:
+    "mean": "Use np_mean for arrays or torch_mean for tensors"
+    "std|sigma": "Use np_std for standard deviation calculations"
+    "sum": "Use np_sum for array summation"
+
+tools:
+  # Special prompt generator tool
+  prompt_generator:
+    python_path: "mcpweaver.prompt_generator.generate_context"
+    full_path: "mcpweaver"
+    workflow_context:
+      description: "Generate context about tools by pulling prompts from server config"
+      parameters:
+        tools: "List of available tools"
+        config_path: "Path to server config file"
+  
+  np_mean:
+    python_path: "numpy.mean"
+    full_path: "numpy"
+    workflow_context:
+      description: "Calculate arithmetic mean of array elements"
+  
+  np_std:
+    python_path: "numpy.std"
+    full_path: "numpy"
+    workflow_context:
+      description: "Calculate standard deviation of array elements"
+  
+  np_sum:
+    python_path: "numpy.sum"
+    full_path: "numpy"
+    workflow_context:
+      description: "Sum array elements"
+  
+  torch_tensor:
+    python_path: "torch.tensor"
+    full_path: "torch"
+    workflow_context:
+      description: "Create PyTorch tensor from array-like data"
+  
+  torch_mean:
+    python_path: "torch.mean"
+    full_path: "torch"
+    workflow_context:
+      description: "Calculate mean of tensor elements" 
