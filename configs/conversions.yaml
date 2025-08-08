@@ -106,4 +106,5 @@ error_handling:
   # Log conversion errors
   log_errors: true
   # Continue processing even if conversion fails
-  continue_on_error: true 
+  continue_on_error: true
+

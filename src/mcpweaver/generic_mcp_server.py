@@ -19,8 +19,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 from .conversion_manager import ConversionManager
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Logger for this module (apps configure handlers/levels)
 logger = logging.getLogger(__name__)
 
 
@@ -36,6 +35,7 @@ def generate_tool_context(tools: List[Dict[str, Any]], query: str = None) -> str
         
     Returns:
         Context string about tool relationships and usage patterns
+
     """
     context_parts = []
     
@@ -537,19 +537,18 @@ def validate_config(config_path: str) -> bool:
     """Validate YAML configuration file."""
     try:
         server = GenericMCPServer(config_path)
-        print(f"✅ Configuration file '{config_path}' is valid")
-        print(f"📦 Loaded {len(server.tools)} tools:")
+        logger.info("Configuration file '%s' is valid", config_path)
+        logger.info("Loaded %d tools:", len(server.tools))
         
         for tool_name, tool_info in server.tools.items():
-            print(f"  - {tool_name} ({tool_info['python_path']})")
-            print(f"    Description: {tool_info['description']}")
-            print(f"    Signature: {tool_info['signature']}")
-            print()
+            logger.info("  - %s (%s)", tool_name, tool_info['python_path'])
+            logger.info("    Description: %s", tool_info['description'])
+            logger.info("    Signature: %s", tool_info['signature'])
         
         return True
         
     except Exception as e:
-        print(f"❌ Configuration file '{config_path}' is invalid: {e}")
+        logger.error("Configuration file '%s' is invalid: %s", config_path, e)
         return False
 
 def test_tool(config_path: str, tool_name: str) -> bool:
@@ -558,18 +557,18 @@ def test_tool(config_path: str, tool_name: str) -> bool:
         server = GenericMCPServer(config_path)
         
         if tool_name not in server.tools:
-            print(f"❌ Tool '{tool_name}' not found")
+            logger.error("Tool '%s' not found", tool_name)
             return False
         
-        print(f"🧪 Testing tool '{tool_name}'...")
+        logger.info("Testing tool '%s'...", tool_name)
         result = server.execute_tool(tool_name, {})
-        print(f"✅ Tool executed successfully")
-        print(f"📊 Result: {result}")
+        logger.info("Tool executed successfully")
+        logger.info("Result: %s", result)
         
         return True
         
     except Exception as e:
-        print(f"❌ Tool test failed: {e}")
+        logger.error("Tool test failed: %s", e)
         return False
 
 def run_server(config_path: str, host: str = "localhost", port: int = 8080, verbose: bool = False):
@@ -626,18 +625,18 @@ def run_server(config_path: str, host: str = "localhost", port: int = 8080, verb
 def main():
     """Main function."""
     if len(sys.argv) < 2:
-        print("Usage: python generic_mcp_server.py <yaml_config.yaml> [--host localhost] [--port 8080] [--verbose]")
-        print("Commands:")
-        print("  validate <yaml_file>  - Validate YAML configuration")
-        print("  test <yaml_file> <tool_name>  - Test a specific tool")
-        print("  server <yaml_file> [--host host] [--port port] [--verbose]  - Run MCP server")
+        logger.info("Usage: python generic_mcp_server.py <yaml_config.yaml> [--host localhost] [--port 8080] [--verbose]")
+        logger.info("Commands:")
+        logger.info("  validate <yaml_file>  - Validate YAML configuration")
+        logger.info("  test <yaml_file> <tool_name>  - Test a specific tool")
+        logger.info("  server <yaml_file> [--host host] [--port port] [--verbose]  - Run MCP server")
         return
     
     command = sys.argv[1]
     
     if command == "validate":
         if len(sys.argv) < 3:
-            print("❌ YAML file required for validate command")
+            logger.error("YAML file required for validate command")
             return
         config_path = sys.argv[2]
         success = validate_config(config_path)
@@ -645,7 +644,7 @@ def main():
     
     elif command == "test":
         if len(sys.argv) < 4:
-            print("❌ YAML file and tool name required for test command")
+            logger.error("YAML file and tool name required for test command")
             return
         config_path = sys.argv[2]
         tool_name = sys.argv[3]
@@ -654,7 +653,7 @@ def main():
     
     elif command == "server":
         if len(sys.argv) < 3:
-            print("❌ YAML file required for server command")
+            logger.error("YAML file required for server command")
             return
         config_path = sys.argv[2]
         
@@ -674,11 +673,11 @@ def main():
         try:
             run_server(config_path, host, port, verbose)
         except KeyboardInterrupt:
-            print("\n🛑 Server stopped by user")
+            logger.info("Server stopped by user")
     
     else:
-        print(f"❌ Unknown command: {command}")
-        print("Available commands: validate, test, server")
+        logger.error("Unknown command: %s", command)
+        logger.info("Available commands: validate, test, server")
 
 if __name__ == "__main__":
     main() 

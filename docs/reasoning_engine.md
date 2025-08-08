@@ -49,21 +49,19 @@ available_tools = [
 ]
 
 # Get execution plan (pure reasoning, no execution)
-plan = engine.reason_about_query(
+result = engine.reason_about_query(
     query="Calculate the mean and standard deviation of [1,2,3,4,5]",
     available_tools=available_tools
 )
 
-print(plan)
-# Output:
+print(result)
+# Output (plan-only):
 # {
-#     "tools": ["np_mean", "np_std"],
-#     "arguments": {
-#         "np_mean": {"a": [1,2,3,4,5]},
-#         "np_std": {"a": [1,2,3,4,5]}
-#     },
-#     "reasoning": "User wants both central tendency and spread measures",
-#     "confidence": 0.95
+#   "plan": [
+#     {"tool": "np_mean", "arguments": {"a": [1,2,3,4,5]}, "why": "..."},
+#     {"tool": "np_std",  "arguments": {"a": [1,2,3,4,5]}, "why": "..."}
+#   ],
+#   "confidence": 0.95
 # }
 ```
 
@@ -95,11 +93,7 @@ reasoning:
     3. Extract any required arguments from the user's query
     4. Provide clear reasoning for your choices
     
-    Respond with a JSON object containing:
-    - "tools": Array of tool names to use (in order of execution)
-    - "arguments": Object with arguments for each tool
-    - "reasoning": Explanation of your logic and choices
-    - "confidence": Confidence level (0.0 to 1.0)
+    Respond with a JSON object containing a step-based plan and confidence.
   
   user_prompt_template: "User query: {query}"
   json_extraction_regex: r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
@@ -154,17 +148,15 @@ Main reasoning method that returns an execution plan.
 **Returns:**
 ```python
 {
-    "tools": List[str],           # Tool names to execute
-    "arguments": Dict[str, Dict], # Arguments for each tool
-    "reasoning": str,             # Explanation of reasoning
-    "confidence": float,          # Confidence level (0.0 to 1.0)
-    "error": str                  # Error message if something went wrong
+  "plan": List[{"tool": str, "arguments": dict, "why": str}],
+  "confidence": float,
+  "reasoning": Optional[str]
 }
 ```
 
 #### `generate_json_schema(available_tools: List[Dict]) -> Optional[Dict]`
 
-Generate JSON schema for structured LLM responses.
+Generate JSON schema for step-based LLM responses.
 
 **Parameters:**
 - `available_tools`: List of available tools with their definitions
@@ -229,9 +221,9 @@ tools = [
     }
 ]
 
-plan = engine.reason_about_query("What is 2+2?", tools)
-print(f"Selected tools: {plan['tools']}")
-print(f"Arguments: {plan['arguments']}")
+result = engine.reason_about_query("What is 2+2?", tools)
+print(result["plan"][0]["tool"])       # "calculator"
+print(result["plan"][0]["arguments"])  # {"expression": "2+2"} (example)
 ```
 
 ### Advanced Usage with Multiple Tools
@@ -293,32 +285,9 @@ python examples/reasoning_engine_example.py
 4. **Monitoring**: Can monitor reasoning performance separately
 5. **Deployment**: Can deploy reasoning and execution independently
 
-## Migration from LLMClient
+## Notes on Legacy Client
 
-If you're currently using `LLMClient` and want to migrate to `ReasoningEngine`:
-
-1. **Remove MCP server configuration** from your YAML config
-2. **Remove execution-related sections** (behavior, tools, etc.)
-3. **Add reasoning configuration** as shown above
-4. **Update your code** to use `reason_about_query()` instead of `process_query()`
-5. **Handle execution separately** using the returned plan
-
-### Before (LLMClient)
-
-```python
-client = LLMClient("config.yaml")
-response = client.process_query("Calculate mean of [1,2,3,4,5]")
-# Response includes execution results
-```
-
-### After (ReasoningEngine)
-
-```python
-engine = ReasoningEngine("reasoning_config.yaml")
-plan = engine.reason_about_query("Calculate mean of [1,2,3,4,5]", available_tools)
-# Plan includes tools and arguments, but no execution
-# You handle execution separately
-```
+The earlier `LLMClient` has been deprecated in favor of using `ReasoningEngine` with a separate MCP server. If you encounter older examples referencing `LLMClient`, replace them with `ReasoningEngine` as shown above.
 
 ## Contributing
 

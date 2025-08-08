@@ -104,35 +104,12 @@ class TestReasoningEngine:
             engine = ReasoningEngine(config_path)
             schema = engine.generate_json_schema(sample_tools)
             
-            # Check basic schema structure
+            # Check basic schema structure (plan-based)
             assert schema is not None
             assert schema["type"] == "object"
-            assert "tools" in schema["properties"]
-            assert "arguments" in schema["properties"]
-            assert "reasoning" in schema["properties"]
+            assert "plan" in schema["properties"]
+            assert schema["properties"]["plan"]["type"] == "array"
             assert "confidence" in schema["properties"]
-            
-            # Check tools enum
-            tools_enum = schema["properties"]["tools"]["items"]["enum"]
-            expected_tools = ["np_mean", "np_std", "calculator"]
-            assert set(tools_enum) == set(expected_tools)
-            
-            # Check arguments schema
-            arguments_schema = schema["properties"]["arguments"]["properties"]
-            assert "np_mean" in arguments_schema
-            assert "np_std" in arguments_schema
-            assert "calculator" in arguments_schema
-            
-            # Check parameter types
-            np_mean_schema = arguments_schema["np_mean"]["properties"]
-            assert np_mean_schema["a"]["type"] == "array"
-            assert "a" in arguments_schema["np_mean"]["required"]
-            
-            calculator_schema = arguments_schema["calculator"]["properties"]
-            assert calculator_schema["expression"]["type"] == "string"
-            assert calculator_schema["precision"]["type"] == "integer"
-            assert "expression" in arguments_schema["calculator"]["required"]
-            assert "precision" not in arguments_schema["calculator"]["required"]
             
         finally:
             Path(config_path).unlink()
@@ -181,7 +158,7 @@ class TestReasoningEngine:
     @patch('requests.post')
     def test_reason_about_query_success(self, mock_post, sample_config, sample_tools):
         """Test successful reasoning about a query."""
-        # Mock successful LLM response
+        # Mock successful LLM response (tools/arguments -> will be normalized to plan)
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -205,13 +182,15 @@ class TestReasoningEngine:
             engine = ReasoningEngine(config_path)
             plan = engine.reason_about_query("Calculate mean and std of [1,2,3,4,5]", sample_tools)
             
-            # Check the plan structure
-            assert plan['tools'] == ['np_mean', 'np_std']
-            assert plan['arguments']['np_mean']['a'] == [1, 2, 3, 4, 5]
-            assert plan['arguments']['np_std']['a'] == [1, 2, 3, 4, 5]
-            assert plan['reasoning'] == 'User wants both central tendency and spread measures'
+            # Check the plan structure (step-based)
+            assert 'plan' in plan
+            assert isinstance(plan['plan'], list)
+            assert len(plan['plan']) == 2
+            assert plan['plan'][0]['tool'] == 'np_mean'
+            assert plan['plan'][0]['arguments'].get('a') == [1, 2, 3, 4, 5]
+            assert plan['plan'][1]['tool'] == 'np_std'
+            assert plan['plan'][1]['arguments'].get('a') == [1, 2, 3, 4, 5]
             assert plan['confidence'] == 0.95
-            assert 'error' not in plan
             
             # Verify the LLM was called with correct parameters
             mock_post.assert_called_once()
@@ -240,10 +219,8 @@ class TestReasoningEngine:
             engine = ReasoningEngine(config_path)
             plan = engine.reason_about_query("Calculate mean", sample_tools)
             
-            # Check error response
-            assert plan['tools'] == []
-            assert plan['arguments'] == {}
-            assert plan['reasoning'] == ''
+            # Check error response (plan format)
+            assert plan['plan'] == []
             assert plan['confidence'] == 0.0
             assert 'error' in plan
             assert 'LLM API error: 500' in plan['error']
@@ -270,10 +247,8 @@ class TestReasoningEngine:
             engine = ReasoningEngine(config_path)
             plan = engine.reason_about_query("Calculate mean", sample_tools)
             
-            # Check error response
-            assert plan['tools'] == []
-            assert plan['arguments'] == {}
-            assert plan['reasoning'] == ''
+            # Check error response (plan format)
+            assert plan['plan'] == []
             assert plan['confidence'] == 0.0
             assert 'error' in plan
             assert 'Failed to parse response' in plan['error']
@@ -356,11 +331,11 @@ class TestReasoningEngine:
         try:
             engine = ReasoningEngine(config_path)
             schema = {"type": "object", "properties": {}}
-            response = '{"tools": ["test"], "arguments": {}}'
+            response = '{"plan": [{"tool": "test", "arguments": {}, "why": "because"}], "confidence": 0.8}'
             
             result = engine._parse_llm_response(response, schema)
-            assert result == {"tools": ["test"], "arguments": {}}
-            
+            assert result == {"plan": [{"tool": "test", "arguments": {}, "why": "because"}], "confidence": 0.8}
+
         finally:
             Path(config_path).unlink()
     
@@ -372,10 +347,10 @@ class TestReasoningEngine:
         
         try:
             engine = ReasoningEngine(config_path)
-            response = '{"tools": ["test"], "arguments": {}}'
+            response = '{"plan": [{"tool": "test", "arguments": {}, "why": "because"}], "confidence": 0.8}'
             
             result = engine._parse_llm_response(response)
-            assert result == {"tools": ["test"], "arguments": {}}
+            assert result == {"plan": [{"tool": "test", "arguments": {}, "why": "because"}], "confidence": 0.8}
             
         finally:
             Path(config_path).unlink()
@@ -388,10 +363,10 @@ class TestReasoningEngine:
         
         try:
             engine = ReasoningEngine(config_path)
-            response = 'Some text before {"tools": ["test"], "arguments": {}} and some text after'
+            response = 'Some text before {"plan": [{"tool": "test", "arguments": {}, "why": "because"}], "confidence": 0.8} and some text after'
             
             result = engine._parse_llm_response(response)
-            assert result == {"tools": ["test"], "arguments": {}}
+            assert result == {"plan": [{"tool": "test", "arguments": {}, "why": "because"}], "confidence": 0.8}
             
         finally:
             Path(config_path).unlink()

@@ -13,8 +13,12 @@ import yaml
 import json
 import requests
 import re
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 
 class ReasoningEngine:
@@ -28,6 +32,12 @@ class ReasoningEngine:
         """
         self.config_path = Path(config_path)
         self.config = self._load_config()
+        # Validate minimal schema and version if present
+        try:
+            from .utils import validate_reasoning_config
+            validate_reasoning_config(self.config)
+        except Exception as e:
+            raise ValueError(f"Invalid reasoning configuration: {e}")
         
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from YAML file."""
@@ -44,7 +54,7 @@ class ReasoningEngine:
         Returns:
             Execution plan with tools, arguments, reasoning, and confidence
         """
-        print(f"🧠 Reasoning about query: {query}")
+        logger.info("Reasoning about query: %s", query)
         
         # Build tool info for LLM with enhanced formatting
         tool_info = []
@@ -127,179 +137,57 @@ class ReasoningEngine:
         
         # Call LLM for reasoning only
         try:
-            # Get LLM configuration
-            llm_config = self.config.get('llm', {})
-            model = llm_config.get('model', 'phi3:mini')
-            provider = llm_config.get('provider', 'ollama')
-            api_url = llm_config.get('api_url', 'http://localhost:11434/api/generate')
-            timeout = llm_config.get('timeout', 30)
-            options = llm_config.get('options', {'temperature': 0.0, 'top_p': 1.0})
-            
-            # Test if model supports JSON format
-            supports_json = self._test_json_support(model, api_url)
-            print(f"🔧 Model {model} JSON support: {supports_json}")
-            
-            # Get base JSON schema from config and enhance it with tool information
-            base_schema = self.config.get('json_schema', {})
-            json_schema = base_schema if supports_json else None  # Use base schema only if JSON is supported
-            
-            # Build the request to the LLM provider
-            payload = {
-                "model": model,
-                "prompt": f"{system_prompt}\n\n{user_prompt}",
-                "stream": False,
-                "options": options
+            # Build dynamic schema from available tools so the LLM emits the expected structure
+            schema = self.generate_json_schema(available_tools)
+
+            # Call LLM using shared helper to ensure consistent payload
+            llm_response_text = self._call_llm(f"{system_prompt}\n\n{user_prompt}", schema)
+
+            # Parse response using shared helper
+            parsed = self._parse_llm_response(llm_response_text, schema)
+
+            # Normalize to step-based plan format only
+            if 'plan' in parsed and isinstance(parsed.get('plan'), list):
+                plan_steps = parsed.get('plan', [])
+                return {
+                    'plan': plan_steps,
+                    'confidence': parsed.get('confidence', 0.0),
+                    **({'reasoning': parsed.get('reasoning')} if 'reasoning' in parsed else {})
+                }
+
+            if 'tools' in parsed and 'arguments' in parsed:
+                tools_list: List[str] = parsed.get('tools', []) or []
+                arguments_by_tool: Dict[str, Any] = parsed.get('arguments', {}) or {}
+                reasoning_text: str = parsed.get('reasoning', '')
+                plan_steps: List[Dict[str, Any]] = []
+                for tool_name in tools_list:
+                    plan_steps.append({
+                        'tool': tool_name,
+                        'arguments': arguments_by_tool.get(tool_name, {}),
+                        'why': reasoning_text or ''
+                    })
+                return {
+                    'plan': plan_steps,
+                    'confidence': parsed.get('confidence', 0.0),
+                    **({'reasoning': reasoning_text} if reasoning_text else {})
+                }
+
+            # Unknown format
+            return {
+                'plan': [],
+                'confidence': 0.0,
+                'reasoning': '',
+                'error': 'Unrecognized LLM response format'
             }
-            
-            # Use Ollama's format parameter with JSON schema
-            if json_schema:
-                payload["type"] = "json_schema"
-                payload["options"]["json_schema"] = json_schema
-                print(f"🔧 Using JSON schema enforcement with type parameter")
-                print(f"🔧 Schema: {json.dumps(json_schema, indent=2)}")
-            else:
-                print(f"⚠️ No JSON schema available")
-            
-            print(f"🤖 Calling LLM ({provider}:{model}) for reasoning...")
-            response = requests.post(api_url, json=payload, timeout=timeout)
-            
-            if response.status_code == 200:
-                result = response.json()
-                llm_response = result.get('response', '').strip()
-                print(f"🤖 LLM Reasoning Response: {llm_response}")
-                print(f"🔧 Raw response type: {type(llm_response)}")
-                print(f"🔧 Response length: {len(llm_response)}")
-                
-                # Parse JSON response
-                try:
-                    if json_schema:
-                        # With JSON Schema support, response should be properly structured
-                        # But first check if it's wrapped in markdown code blocks
-                        cleaned_response = self._extract_json_from_markdown(llm_response)
-                        llm_json = json.loads(cleaned_response.strip())
-                    else:
-                        # Fallback for non-JSON responses - try to extract action information from text
-                        print(f"🔧 Attempting to parse text response for action plan...")
-                        llm_json = self._parse_text_response(llm_response, available_tools)
-                    
-                    print(f"🔧 Parsed JSON: {json.dumps(llm_json, indent=2)}")
-                    
-                    # Handle new step-based plan format
-                    if 'plan' in llm_json:
-                        # New step-based plan format
-                        plan = llm_json.get('plan', [])
-                        confidence = llm_json.get('confidence', 0.8)
-                        
-                        # Validate and clean plan steps
-                        validated_plan = []
-                        available_tool_names = [tool.get('name') for tool in available_tools]
-                        
-                        for step in plan:
-                            if isinstance(step, dict):
-                                tool_name = step.get('tool', '')
-                                arguments = step.get('arguments', {})
-                                why = step.get('why', '')
-                                
-                                # Validate tool name (fuzzy match if needed)
-                                if tool_name in available_tool_names:
-                                    validated_plan.append({
-                                        'tool': tool_name,
-                                        'arguments': arguments,
-                                        'why': why
-                                    })
-                                else:
-                                    # Try fuzzy matching
-                                    best_match = self._find_best_tool_match(tool_name, available_tool_names)
-                                    if best_match:
-                                        validated_plan.append({
-                                            'tool': best_match,
-                                            'arguments': arguments,
-                                            'why': why
-                                        })
-                        
-                        action_plan = {
-                            'plan': validated_plan,
-                            'confidence': confidence
-                        }
-                    elif 'actions' in llm_json:
-                        # Legacy actions format - convert to plan format
-                        actions = llm_json.get('actions', [])
-                        confidence = llm_json.get('confidence', 0.8)
-                        
-                        plan = []
-                        for action in actions:
-                            if isinstance(action, dict):
-                                tool_name = action.get('tool', '')
-                                arguments = action.get('arguments', {})
-                                plan.append({
-                                    'tool': tool_name,
-                                    'arguments': arguments,
-                                    'why': 'Converted from legacy format'
-                                })
-                        
-                        action_plan = {
-                            'plan': plan,
-                            'confidence': confidence
-                        }
-                    elif 'action1' in llm_json:
-                        # Legacy action1, action2, action3 format - convert to plan format
-                        plan = []
-                        confidence = llm_json.get('confidence', 0.8)
-                        
-                        # Collect all actions (action1, action2, action3, etc.)
-                        for i in range(1, 4):  # Support up to 3 actions
-                            action_key = f'action{i}'
-                            if action_key in llm_json:
-                                action_data = llm_json[action_key]
-                                if isinstance(action_data, dict):
-                                    tool_name = action_data.get('tool', '')
-                                    arguments = action_data.get('arguments', {})
-                                    
-                                    if tool_name:
-                                        plan.append({
-                                            'tool': tool_name,
-                                            'arguments': arguments,
-                                            'why': f'Step {i} from legacy format'
-                                        })
-                        
-                        action_plan = {
-                            'plan': plan,
-                            'confidence': confidence
-                        }
-                    else:
-                        # Invalid format - return empty plan
-                        action_plan = {
-                            'plan': [],
-                            'confidence': 0.0
-                        }
-                    print(f"✅ Action Plan: {action_plan}")
-                    return action_plan
-                    
-                except Exception as e:
-                    print(f"❌ Failed to parse LLM JSON response: {e}")
-                    print(f"🤖 Raw response: {llm_response}")
-                    
-                    # Try to repair the JSON response
-                    try:
-                        cleaned_response = self._extract_json_from_markdown(llm_response)
-                        if cleaned_response != llm_response:
-                            print(f"🔧 Attempting to repair JSON response...")
-                            llm_json = json.loads(cleaned_response.strip())
-                            # Process the repaired response
-                            if 'plan' in llm_json:
-                                return {'plan': llm_json.get('plan', []), 'confidence': llm_json.get('confidence', 0.0)}
-                    except Exception as repair_error:
-                        print(f"❌ JSON repair failed: {repair_error}")
-                    
-                    return {'plan': [], 'confidence': 0.0, 'error': f'Failed to parse response: {e}'}
-                    
-            else:
-                print(f"❌ LLM API error: {response.status_code}")
-                return {'plan': [], 'confidence': 0.0, 'error': f'LLM API error: {response.status_code}'}
-                
         except Exception as e:
-            print(f"❌ Error calling LLM: {e}")
-            return {'plan': [], 'confidence': 0.0, 'error': f'Error calling LLM: {e}'}
+            # Ensure stable error shape
+            msg = str(e)
+            return {
+                'plan': [],
+                'confidence': 0.0,
+                'reasoning': '',
+                'error': f'Failed to parse response: {msg}' if 'LLM API error' not in msg else msg
+            }
     
     def generate_json_schema(self, available_tools: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Generate JSON schema for step-based plan format.
@@ -312,85 +200,74 @@ class ReasoningEngine:
         """
         if not available_tools:
             return None
-        
-        # Build tool-specific argument schemas
-        tool_schemas = {}
-        tool_enum = []
-        
+
+        tool_names: List[str] = []
+        arguments_schema_per_tool: Dict[str, Any] = {}
+
         for tool in available_tools:
             tool_name = tool.get('name', 'unknown')
-            tool_enum.append(tool_name)
-            
-            # Get tool inputSchema from server if available, otherwise synthesize from parameters
+            tool_names.append(tool_name)
+
+            # Prefer inputSchema if available
             input_schema = tool.get('inputSchema', {})
             if input_schema and input_schema.get('type') == 'object':
-                # Use server-provided inputSchema
-                tool_schemas[tool_name] = input_schema
-            else:
-                # Synthesize from parameters
-                parameters = tool.get('parameters', {})
-                if parameters:
-                    tool_schema = {
-                        "type": "object",
-                        "properties": {}
-                    }
-                    
-                    for param_name, param_data in parameters.items():
-                        param_type = param_data.get('type', 'Any')
-                        json_type = self._convert_python_type_to_json(param_type)
-                        
-                        tool_schema["properties"][param_name] = {
-                            "type": json_type,
-                            "description": param_data.get('description', f'Parameter {param_name}')
+                arguments_schema_per_tool[tool_name] = input_schema
+                continue
+
+            # Fallback: synthesize from parameters
+            parameters = tool.get('parameters', {})
+            tool_props: Dict[str, Any] = {}
+            required_params: List[str] = []
+            for param_name, param_data in parameters.items():
+                json_type = self._convert_python_type_to_json(param_data.get('type', 'Any'))
+                tool_props[param_name] = {
+                    "type": json_type,
+                    "description": param_data.get('description', f'Parameter {param_name}')
+                }
+                if param_data.get('required', False):
+                    required_params.append(param_name)
+
+            arguments_schema_per_tool[tool_name] = {
+                "type": "object",
+                "properties": tool_props,
+                **({"required": required_params} if required_params else {})
+            }
+
+        # Build plan schema with per-tool argument schemas via oneOf
+        plan_item_schema = {
+            "type": "object",
+            "properties": {
+                "tool": {
+                    "type": "string",
+                    "enum": tool_names,
+                    "description": "Name of the tool to execute"
+                },
+                "arguments": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "properties": arguments_schema_per_tool.get(name, {}).get("properties", {}),
+                            **({"required": arguments_schema_per_tool.get(name, {}).get("required", [])} if arguments_schema_per_tool.get(name, {}).get("required") else {})
                         }
-                        
-                        # Add required field if parameter is required
-                        if param_data.get('required', False):
-                            if 'required' not in tool_schema:
-                                tool_schema['required'] = []
-                            tool_schema['required'].append(param_name)
-                    
-                    tool_schemas[tool_name] = tool_schema
-                else:
-                    # For tools without parameters, allow empty object
-                    tool_schemas[tool_name] = {
-                        "type": "object",
-                        "properties": {}
-                    }
-        
-        # Build the main plan schema with step-based format
+                        for name in tool_names
+                    ],
+                    "description": "Arguments for the tool"
+                },
+                "why": {
+                    "type": "string",
+                    "description": "Explanation of why this step is needed"
+                }
+            },
+            "required": ["tool", "arguments", "why"],
+            "additionalProperties": False
+        }
+
         schema = {
             "type": "object",
             "properties": {
                 "plan": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "tool": {
-                                "type": "string",
-                                "enum": tool_enum,
-                                "description": "Name of the tool to execute"
-                            },
-                            "arguments": {
-                                "oneOf": [
-                                    {
-                                        "type": "object",
-                                        "properties": tool_schemas.get(tool_name, {}).get("properties", {}),
-                                        "required": tool_schemas.get(tool_name, {}).get("required", [])
-                                    }
-                                    for tool_name in tool_enum
-                                ],
-                                "description": "Arguments for the tool"
-                            },
-                            "why": {
-                                "type": "string",
-                                "description": "Explanation of why this step is needed"
-                            }
-                        },
-                        "required": ["tool", "arguments", "why"],
-                        "additionalProperties": False
-                    },
+                    "items": plan_item_schema,
                     "description": "Ordered list of execution steps",
                     "minItems": 1
                 },
@@ -399,12 +276,13 @@ class ReasoningEngine:
                     "description": "Confidence level in the execution plan",
                     "minimum": 0.0,
                     "maximum": 1.0
-                }
+                },
+                "reasoning": {"type": "string", "description": "Optional reasoning"}
             },
             "required": ["plan", "confidence"],
             "additionalProperties": False
         }
-        
+
         return schema
     
     def _build_dynamic_schema(self, available_tools):
@@ -705,7 +583,7 @@ class ReasoningEngine:
                 # Call the prompt generator
                 context = generate_context(available_tools, str(server_config_path))
                 if context:
-                    print(f"🔧 Injected context from prompt generator")
+                    logger.debug("Injected context from prompt generator")
                 return context
             else:
                 return ""
@@ -769,7 +647,7 @@ class ReasoningEngine:
             else:
                 return False
         except Exception as e:
-            print(f"🔧 JSON support test failed: {e}")
+            logger.debug("JSON support test failed: %s", e)
             return False
 
     def _parse_text_response(self, text_response: str, available_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -810,7 +688,7 @@ class ReasoningEngine:
                 }
                 
         except Exception as e:
-            print(f"🔧 Text parsing failed: {e}")
+            logger.debug("Text parsing failed: %s", e)
             return {
                 'actions': [],
                 'reasoning': text_response,
@@ -859,8 +737,8 @@ def main():
     import sys
     
     if len(sys.argv) < 2:
-        print("Usage: python reasoning_engine.py <config.yaml> [query]")
-        print("Example: python reasoning_engine.py reasoning_config.yaml 'Calculate the mean of [1,2,3,4,5]'")
+        logger.info("Usage: python reasoning_engine.py <config.yaml> [query]")
+        logger.info("Example: python reasoning_engine.py reasoning_config.yaml 'Calculate the mean of [1,2,3,4,5]'")
         return
     
     config_path = sys.argv[1]
@@ -887,13 +765,11 @@ def main():
     try:
         engine = ReasoningEngine(config_path)
         plan = engine.reason_about_query(query, available_tools)
-        print("\n" + "="*50)
-        print("🧠 Reasoning Engine Response:")
-        print("="*50)
-        print(json.dumps(plan, indent=2))
+        logger.info("Reasoning Engine Response:")
+        logger.info(json.dumps(plan, indent=2))
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logger.error("Error: %s", e)
 
 if __name__ == "__main__":
     main() 

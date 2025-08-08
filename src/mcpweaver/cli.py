@@ -8,8 +8,6 @@ from pathlib import Path
 import sys
 
 from .generic_mcp_server import GenericMCPServer, validate_config, test_tool, run_server
-from .llm_client import LLMClient
-from .mcp_client_cli import run_interactive_mode
 
 app = typer.Typer(help="MCP Weaver - YAML configurable MCP Server/Client tools")
 console = Console()
@@ -51,45 +49,7 @@ def server(
         raise typer.Exit(1)
 
 
-@app.command()
-def client(
-    config_path: str = typer.Argument(..., help="Path to client YAML configuration file"),
-    query: str = typer.Argument(None, help="Query to process"),
-    interactive: bool = typer.Option(False, "--interactive", "-i", help="Run in interactive mode")
-):
-    """Run MCP client with YAML configuration."""
-    config_file = Path(config_path)
-    
-    if not config_file.exists():
-        console.print(f"[red]❌ Configuration file not found: {config_path}[/red]")
-        raise typer.Exit(1)
-    
-    try:
-        client_instance = LLMClient(config_path)
-        
-        if interactive:
-            console.print("[green]🤖 Starting interactive mode...[/green]")
-            run_interactive_mode(client_instance)
-        elif query:
-            console.print(f"[blue]🤖 Processing query: {query}[/blue]")
-            response = client_instance.process_query(query)
-            console.print("\n" + "="*50)
-            console.print("[bold green]🤖 Response:[/bold green]")
-            console.print("="*50)
-            console.print(response)
-        else:
-            # Default query - could be made configurable in the future
-            default_query = "What's the magic word?"
-            console.print(f"[blue]🤖 Using default query: {default_query}[/blue]")
-            response = client_instance.process_query(default_query)
-            console.print("\n" + "="*50)
-            console.print("[bold green]🤖 Response:[/bold green]")
-            console.print("="*50)
-            console.print(response)
-            
-    except Exception as e:
-        console.print(f"[red]❌ Error: {e}[/red]")
-        raise typer.Exit(1)
+## Removed legacy client command that depended on LLMClient
 
 
 @app.command()
@@ -182,28 +142,7 @@ def info(
         except Exception as e:
             console.print(f"[yellow]⚠️  Not a valid server config: {e}[/yellow]")
         
-        # Try to load as client config
-        try:
-            client = LLMClient(config_path)
-            console.print(f"[green]✅ Client configuration loaded successfully[/green]")
-            
-            # Show client config info
-            config = client.config
-            console.print(f"[blue] LLM: {config.get('llm', {}).get('model', 'Unknown')} ({config.get('llm', {}).get('provider', 'Unknown')})[/blue]")
-            console.print(f"[blue]🌐 MCP Server: {config.get('mcp_server', {}).get('host', 'Unknown')}:{config.get('mcp_server', {}).get('port', 'Unknown')}[/blue]")
-            
-            tools = config.get('tools', {})
-            if tools:
-                console.print(f"[blue]🛠️  Configured {len(tools)} tools:[/blue]")
-                for tool_name, tool_config in tools.items():
-                    if isinstance(tool_config, dict):
-                        desc = tool_config.get('description', 'No description')
-                        console.print(f"  - {tool_name}: {desc}")
-                    else:
-                        console.print(f"  - {tool_name}: {tool_config}")
-            
-        except Exception as e:
-            console.print(f"[yellow]⚠️  Not a valid client config: {e}[/yellow]")
+        # Legacy client config display removed
             
     except Exception as e:
         console.print(f"[red]❌ Error: {e}[/red]")

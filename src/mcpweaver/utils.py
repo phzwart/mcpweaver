@@ -11,6 +11,7 @@ import requests
 import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+import yaml
 from .reasoning_engine import ReasoningEngine
 
 
@@ -164,3 +165,43 @@ def convert_mcp_tools_to_reasoning_format(tools: List[Dict[str, Any]]) -> List[D
         }
         available_tools.append(tool_info)
     return available_tools
+
+
+# --- YAML schema validation and config versioning ---
+
+def validate_reasoning_config(config: Dict[str, Any]) -> None:
+    """Validate reasoning YAML config structure and version.
+    
+    Required top-level keys: llm, reasoning.
+    Optional: json_schema, response_format, version.
+    """
+    required = ["llm", "reasoning"]
+    for key in required:
+        if key not in config:
+            raise ValueError(f"Missing required config section: {key}")
+    version = config.get("version")
+    if version is not None:
+        if not isinstance(version, (int, str)):
+            raise ValueError("version must be int or string")
+        # minimal forward-compat policy
+        supported_major = 1
+        try:
+            major = int(str(version).split(".")[0])
+            if major > supported_major:
+                raise ValueError(f"Config version {version} not supported (max {supported_major}.x)")
+        except Exception:
+            # non-numeric ok; ignore
+            pass
+
+
+def load_reasoning_config(config_path: str) -> Dict[str, Any]:
+    """Load and validate reasoning config from YAML file."""
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    data = path.read_text()
+    config = yaml.safe_load(data)
+    if not isinstance(config, dict):
+        raise ValueError("Configuration must be a YAML mapping")
+    validate_reasoning_config(config)
+    return config

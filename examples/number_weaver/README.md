@@ -18,7 +18,7 @@ Main client configuration with LLM settings, behavior, and serialization configu
 Server-side tool definitions and serialization settings.
 
 ### Generic Conversions Configuration
-The conversion system uses a generic configuration file located at `src/mcpweaver/conversions.yaml` that defines how different array types are serialized and deserialized.
+The conversion system uses a generic configuration file located at `configs/conversions.yaml` that defines how different array types are serialized and deserialized.
 
 ## Array Type Conversion System
 
@@ -43,11 +43,17 @@ serialization:
   default_behavior: "string"
 ```
 
+Or set the environment variable before starting your app/server:
+
+```bash
+export MCPWEAVER_CONVERSIONS_FILE=/absolute/path/to/conversions.yaml
+```
+
 ### Adding New Array Types
 
 To add support for a new array type (e.g., TensorFlow), you can:
 
-1. **Modify the default configuration**: Edit `src/mcpweaver/conversions.yaml`
+1. **Modify the default configuration**: Edit `configs/conversions.yaml`
 2. **Use a custom configuration**: Create your own conversions file and reference it in your config
 
 Example custom configuration:
@@ -100,6 +106,6 @@ ufunc 'subtract' did not contain a loop with signature matching types (dtype('<U
 ```
 
 This means the conversion system isn't working properly. Check:
-1. The default conversions file exists at `src/mcpweaver/conversions.yaml`
+1. The default conversions file exists at `configs/conversions.yaml`
 2. The conversion configuration is enabled in both client and server configs
 3. The tool names match the prefixes defined in the conversion rules 
